@@ -277,6 +277,7 @@ async function processAudio(audioData) {
       text: text.trim(),
       timestamp: new Date().toISOString()
     });
+    mainWindow.webContents.send('app:success', { message: 'Text transcribed successfully' });
   }
 
   // Handle paste based on settings
@@ -502,6 +503,12 @@ function setupIPC() {
 
   ipcMain.handle('history:delete', (event, id) => {
     return deleteHistoryItem(id);
+  });
+
+  // STT Health check
+  ipcMain.handle('stt:health', async () => {
+    const settings = getSettings();
+    return await stt.checkHealth(settings.sttServerUrl);
   });
 
   // Theme IPC

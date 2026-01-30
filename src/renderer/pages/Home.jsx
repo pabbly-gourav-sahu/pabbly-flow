@@ -17,10 +17,12 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
+import { useToast } from '../context/ToastContext';
 
 function Home() {
   const { user } = useAuth();
   const { history, getStats, deleteHistoryItem, isRecording, toggleRecording, settings } = useSettings();
+  const { showToast } = useToast();
   const stats = getStats();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -80,11 +82,13 @@ function Home() {
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
+    showToast('Copied to clipboard', 'success');
   };
 
   const handleDelete = (id) => {
     if (deleteHistoryItem) {
       deleteHistoryItem(id);
+      showToast('Recording deleted', 'success');
     }
   };
 

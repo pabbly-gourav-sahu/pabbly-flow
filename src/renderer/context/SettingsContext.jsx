@@ -133,15 +133,30 @@ export function SettingsProvider({ children }) {
       return acc + (item.text?.split(/\s+/).filter(Boolean).length || 0);
     }, 0);
 
-    // Calculate streak
-    const today = new Date().toDateString();
-    const hasToday = history.some(
-      (item) => new Date(item.timestamp).toDateString() === today
-    );
+    // Calculate consecutive day streak
+    const uniqueDates = [...new Set(
+      history.map((item) => new Date(item.timestamp).toDateString())
+    )];
+    const dateTimes = uniqueDates.map((d) => new Date(d).getTime());
+    dateTimes.sort((a, b) => b - a); // newest first
+
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayMs = 86400000;
+
+    for (let i = 0; i < dateTimes.length; i++) {
+      const expected = today.getTime() - i * dayMs;
+      if (dateTimes[i] === expected) {
+        streak++;
+      } else {
+        break;
+      }
+    }
 
     return {
       totalWords,
-      streak: hasToday ? 1 : 0,
+      streak,
       wpm: history.length > 0 ? Math.round(totalWords / history.length * 10) : 0,
     };
   }, [history]);

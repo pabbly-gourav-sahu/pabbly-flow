@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   List,
@@ -11,6 +11,7 @@ import {
 import {
   Home as HomeIcon,
   Settings as SettingsIcon,
+  FiberManualRecord as DotIcon,
 } from '@mui/icons-material';
 import { useTheme as useAppTheme } from '../context/ThemeContext';
 import { useTheme } from '@mui/material/styles';
@@ -23,6 +24,24 @@ const NAV_ITEMS = [
 function Sidebar({ currentPage, onNavigate }) {
   const theme = useTheme();
   const { mode } = useAppTheme();
+  const [sttConnected, setSttConnected] = useState(null);
+
+  useEffect(() => {
+    async function checkHealth() {
+      try {
+        if (window.electronAPI?.checkSttHealth) {
+          const healthy = await window.electronAPI.checkSttHealth();
+          setSttConnected(healthy);
+        }
+      } catch {
+        setSttConnected(false);
+      }
+    }
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <Box
@@ -101,6 +120,42 @@ function Sidebar({ currentPage, onNavigate }) {
           );
         })}
       </List>
+
+      {/* STT Status */}
+      <Box
+        sx={{
+          mt: 'auto',
+          p: 2,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          WebkitAppRegion: 'no-drag',
+        }}
+      >
+        <DotIcon
+          sx={{
+            fontSize: 10,
+            color: sttConnected === null
+              ? theme.palette.text.secondary
+              : sttConnected
+                ? '#4caf50'
+                : '#e53935',
+          }}
+        />
+        <Typography
+          sx={{
+            fontSize: 12,
+            color: theme.palette.text.secondary,
+            fontWeight: 500,
+          }}
+        >
+          {sttConnected === null
+            ? 'Checking...'
+            : sttConnected
+              ? 'STT Connected'
+              : 'STT Offline'}
+        </Typography>
+      </Box>
     </Box>
   );
 }

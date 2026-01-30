@@ -18,8 +18,16 @@ function NotificationBridge() {
       });
     }
 
+    // Listen for success events from main process
+    if (window.electronAPI?.onSuccess) {
+      window.electronAPI.onSuccess((data) => {
+        showToast(data.message || 'Success', 'success');
+      });
+    }
+
     return () => {
       window.electronAPI?.removeErrorListener?.();
+      window.electronAPI?.removeSuccessListener?.();
     };
   }, [showToast]);
 

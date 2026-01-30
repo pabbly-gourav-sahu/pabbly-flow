@@ -30,6 +30,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // App info
   getAppVersion: () => ipcRenderer.invoke('app:version'),
 
+  // STT health check
+  checkSttHealth: () => ipcRenderer.invoke('stt:health'),
+
+  // Success notifications from main process
+  onSuccess: (callback) => {
+    ipcRenderer.removeAllListeners('app:success');
+    ipcRenderer.on('app:success', (event, data) => callback(data));
+  },
+  removeSuccessListener: () => {
+    ipcRenderer.removeAllListeners('app:success');
+  },
+
   // Recording control
   toggleRecording: () => ipcRenderer.send('toggle-recording'),
   onRecordingState: (callback) => {
