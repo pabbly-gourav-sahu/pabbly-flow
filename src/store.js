@@ -20,7 +20,7 @@ const schema = {
   },
   language: {
     type: 'string',
-    enum: ['auto', 'en', 'hi', 'es', 'fr', 'de', 'ja', 'zh'],
+    enum: ['auto', 'en', 'es', 'fr', 'de', 'ja', 'zh'],
     default: config.defaults.language
   },
   sttServerUrl: {
