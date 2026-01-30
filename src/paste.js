@@ -1,16 +1,11 @@
 /**
  * Pabbly Flow - Paste Module
  * Handles system-wide text pasting via clipboard + simulated keystroke
- * Like Whisper Flow - remembers the app where cursor was and pastes there
+ * Wispr-style: remembers the app + cursor position, pastes back there
  */
 
 const { clipboard } = require('electron');
 const { exec } = require('child_process');
-
-// ============ Configuration ============
-const CONFIG = {
-  pasteDelay: 100
-};
 
 /**
  * Get the currently focused (frontmost) application name
@@ -38,7 +33,7 @@ function getFrontmostApp() {
 }
 
 /**
- * Activate a specific application by name
+ * Activate a specific application and wait until it is actually frontmost
  * @param {string} appName
  * @returns {Promise<boolean>}
  */
@@ -46,13 +41,26 @@ function activateApp(appName) {
   return new Promise((resolve) => {
     if (process.platform === 'darwin' && appName) {
       console.log(`[Paste] Activating app: ${appName}`);
-      const script = `tell application "${appName}" to activate`;
-      exec(`osascript -e '${script}'`, (error) => {
+      // Use 'activate' and then verify it became frontmost
+      const script = `
+        tell application "${appName}" to activate
+        delay 0.1
+        tell application "System Events"
+          set frontApp to name of first application process whose frontmost is true
+        end tell
+        return frontApp
+      `;
+      exec(`osascript -e '${script}'`, (error, stdout) => {
         if (error) {
           console.error(`[Paste] Failed to activate ${appName}:`, error.message);
           resolve(false);
         } else {
-          resolve(true);
+          const currentFront = stdout.trim();
+          const success = currentFront === appName;
+          if (!success) {
+            console.warn(`[Paste] Wanted ${appName}, but frontmost is ${currentFront}`);
+          }
+          resolve(success);
         }
       });
     } else {
@@ -62,9 +70,15 @@ function activateApp(appName) {
 }
 
 /**
- * Type text at the current cursor position
+ * Type text at the current cursor position — Wispr-style
+ * 1. Save current clipboard
+ * 2. Copy transcribed text to clipboard
+ * 3. Activate target app (where cursor was)
+ * 4. Simulate Cmd+V
+ * 5. Restore original clipboard
+ *
  * @param {string} text - Text to type
- * @param {string} targetApp - App name to activate before pasting (required for reliable paste)
+ * @param {string} targetApp - App name to activate before pasting
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 async function typeText(text, targetApp = null) {
@@ -79,7 +93,15 @@ async function typeText(text, targetApp = null) {
 
   console.log(`[Paste] Typing text: "${trimmedText.substring(0, 50)}${trimmedText.length > 50 ? '...' : ''}"`);
 
-  // Step 1: Copy text to clipboard FIRST
+  // Step 1: Save current clipboard so we can restore it after paste
+  let originalClipboard = '';
+  try {
+    originalClipboard = clipboard.readText();
+  } catch (e) {
+    // ignore
+  }
+
+  // Step 2: Copy transcribed text to clipboard
   try {
     clipboard.writeText(trimmedText);
     console.log('[Paste] Text copied to clipboard');
@@ -88,36 +110,54 @@ async function typeText(text, targetApp = null) {
     return { success: false, error: 'Failed to copy to clipboard' };
   }
 
-  // Step 2: Activate target app (the app where user was before recording)
+  // Step 3: Activate target app (the app where user's cursor was)
   if (targetApp && process.platform === 'darwin') {
     const activated = await activateApp(targetApp);
-    if (activated) {
-      // Wait for app to become active and ready for input
-      await sleep(150);
+    if (!activated) {
+      console.warn(`[Paste] Could not activate ${targetApp}, attempting paste anyway`);
     }
+    // Small extra delay to let the app fully regain focus and cursor
+    await sleep(50);
   }
 
-  // Step 3: Simulate paste keystroke
+  // Step 4: Simulate paste keystroke (Cmd+V)
   try {
     await simulatePaste();
     console.log('[Paste] Paste completed!');
+
+    // Step 5: Restore original clipboard after a short delay
+    // (so the paste has time to complete before we overwrite clipboard)
+    setTimeout(() => {
+      try {
+        clipboard.writeText(originalClipboard);
+        console.log('[Paste] Original clipboard restored');
+      } catch (e) {
+        // ignore
+      }
+    }, 500);
+
     return { success: true };
   } catch (error) {
     console.error('[Paste] Failed to simulate paste:', error);
+    // Text is still on clipboard as fallback
     return { success: false, error: error.message || 'Failed to simulate paste' };
   }
 }
 
 /**
  * Simulate paste keystroke (Cmd+V on macOS, Ctrl+V on Windows)
+ * Uses a single AppleScript call that does the keystroke immediately
  * @returns {Promise<void>}
  */
 function simulatePaste() {
   return new Promise((resolve, reject) => {
     if (process.platform === 'darwin') {
-      // Simple Cmd+V
-      const script = `tell application "System Events" to keystroke "v" using command down`;
-
+      // Small delay within AppleScript ensures the app is ready for input
+      const script = `
+        tell application "System Events"
+          keystroke "v" using command down
+        end tell
+      `;
       exec(`osascript -e '${script}'`, (error, stdout, stderr) => {
         if (error) {
           console.error('[Paste] AppleScript error:', stderr);
@@ -157,12 +197,23 @@ function sleep(ms) {
 }
 
 /**
- * Check if paste functionality is available
+ * Check if paste functionality is available (Accessibility perms on macOS)
  */
 async function checkAvailability() {
   return new Promise((resolve) => {
     if (process.platform === 'darwin') {
-      exec('which osascript', (error) => resolve(!error));
+      // Test if we can actually use System Events (requires Accessibility permission)
+      const script = `tell application "System Events" to return name of first application process whose frontmost is true`;
+      exec(`osascript -e '${script}'`, (error) => {
+        if (error) {
+          console.error('[Paste] Accessibility permission NOT granted. Auto-paste will not work.');
+          console.error('[Paste] Go to: System Settings → Privacy & Security → Accessibility → Enable Electron/Pabbly Flow');
+          resolve(false);
+        } else {
+          console.log('[Paste] Accessibility permission OK');
+          resolve(true);
+        }
+      });
     } else if (process.platform === 'win32') {
       resolve(true);
     } else {
@@ -176,6 +227,5 @@ module.exports = {
   simulatePaste,
   checkAvailability,
   getFrontmostApp,
-  activateApp,
-  CONFIG
+  activateApp
 };

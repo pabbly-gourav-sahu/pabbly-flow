@@ -34,6 +34,11 @@ const schema = {
   translateToEnglish: {
     type: 'boolean',
     default: config.defaults.translateToEnglish
+  },
+  theme: {
+    type: 'string',
+    enum: ['light', 'dark'],
+    default: 'light'
   }
 };
 
@@ -131,6 +136,18 @@ function clearHistory() {
   store.set('history', []);
 }
 
+/**
+ * Delete a single history item by id
+ * @param {number} id
+ * @returns {Array} updated history
+ */
+function deleteHistoryItem(id) {
+  const history = getHistory();
+  const updated = history.filter(item => item.id !== id);
+  store.set('history', updated);
+  return updated;
+}
+
 module.exports = {
   store,
   getSettings,
@@ -141,5 +158,6 @@ module.exports = {
   getHistory,
   addToHistory,
   clearHistory,
+  deleteHistoryItem,
   schema
 };

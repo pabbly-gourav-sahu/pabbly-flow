@@ -1,6 +1,6 @@
 /**
  * Pabbly Flow - Overlay Styles
- * Floating mic bubble that appears during recording
+ * Pill-shaped floating indicator with backdrop blur
  */
 
 * {
@@ -14,7 +14,7 @@ html, body {
   height: 100%;
   overflow: hidden;
   background: transparent;
-  -webkit-app-region: drag; /* Allow dragging the window */
+  -webkit-app-region: drag;
 }
 
 #overlay-container {
@@ -27,31 +27,45 @@ html, body {
 
 #mic-bubble {
   position: relative;
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 20px rgba(229, 57, 53, 0.5);
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 22px;
+  background: rgba(229, 57, 53, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
   cursor: default;
   -webkit-app-region: drag;
+  white-space: nowrap;
 }
 
 #mic-icon {
-  font-size: 24px;
+  font-size: 18px;
   line-height: 1;
-  margin-bottom: 2px;
+  flex-shrink: 0;
+}
+
+#status-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.95);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #duration {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.7);
   letter-spacing: 0.5px;
+  flex-shrink: 0;
 }
 
 /* Pulsing ring animation */
@@ -60,35 +74,40 @@ html, body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  border: 2px solid rgba(229, 57, 53, 0.6);
-  animation: pulse 1.5s ease-out infinite;
+  width: 100%;
+  height: 44px;
+  border-radius: 22px;
+  border: 2px solid rgba(229, 57, 53, 0.5);
+  animation: pulse 2s ease-out infinite;
   pointer-events: none;
 }
 
 @keyframes pulse {
   0% {
-    width: 64px;
-    height: 64px;
-    opacity: 1;
+    width: 100%;
+    height: 44px;
+    opacity: 0.8;
   }
   100% {
-    width: 100px;
-    height: 100px;
+    width: calc(100% + 30px);
+    height: 60px;
     opacity: 0;
   }
 }
 
-/* Processing state (after recording stops, before STT completes) */
+/* Processing state */
 #mic-bubble.processing {
-  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
-  box-shadow: 0 4px 20px rgba(255, 152, 0, 0.5);
+  background: rgba(255, 152, 0, 0.85);
 }
 
 #mic-bubble.processing #pulse-ring {
-  border-color: rgba(255, 152, 0, 0.6);
+  border-color: rgba(255, 152, 0, 0.5);
+  animation: pulse-processing 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-processing {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
 }
 
 #mic-bubble.processing #mic-icon {
@@ -102,8 +121,7 @@ html, body {
 
 /* Success state */
 #mic-bubble.success {
-  background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
-  box-shadow: 0 4px 20px rgba(76, 175, 80, 0.5);
+  background: rgba(76, 175, 80, 0.85);
 }
 
 #mic-bubble.success #pulse-ring {
@@ -112,8 +130,7 @@ html, body {
 
 /* Error state */
 #mic-bubble.error {
-  background: linear-gradient(135deg, #757575 0%, #616161 100%);
-  box-shadow: 0 4px 20px rgba(117, 117, 117, 0.5);
+  background: rgba(117, 117, 117, 0.85);
 }
 
 #mic-bubble.error #pulse-ring {

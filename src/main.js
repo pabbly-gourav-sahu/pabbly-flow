@@ -17,7 +17,7 @@ const path = require('path');
 const config = require('./config');
 const stt = require('./stt');
 const paste = require('./paste');
-const { getSettings, setSettings, getSetting, resetSettings, getHistory, addToHistory, clearHistory } = require('./store');
+const { getSettings, setSettings, getSetting, resetSettings, getHistory, addToHistory, clearHistory, deleteHistoryItem } = require('./store');
 
 // ============ State ============
 let tray = null;
@@ -41,6 +41,8 @@ function createMainWindow() {
     return;
   }
 
+  const storedTheme = getSetting('theme') || 'light';
+  const appIcon = nativeImage.createFromPath(path.join(__dirname, '../build/icon.png'));
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 700,
@@ -49,7 +51,8 @@ function createMainWindow() {
     show: false,
     frame: true,
     titleBarStyle: 'hiddenInset',
-    backgroundColor: '#faf9f7',
+    icon: appIcon,
+    backgroundColor: storedTheme === 'dark' ? '#121212' : '#faf9f7',
     resizable: true,
     webPreferences: {
       nodeIntegration: false,
@@ -154,24 +157,37 @@ function createRecorderWindow() {
 }
 
 // ============ Recording Control ============
-async function startRecording() {
+// source: 'shortcut' (global hotkey) or 'button' (UI button click)
+let recordingSource = 'shortcut';
+
+async function startRecording(source = 'shortcut') {
   if (!recorderReady) {
     console.log('[Main] Recorder not ready yet');
     return false;
   }
 
-  // Get the frontmost app BEFORE showing overlay
-  targetApp = await paste.getFrontmostApp();
-  console.log(`[Main] Target app for paste: ${targetApp}`);
+  recordingSource = source;
+
+  if (source === 'shortcut') {
+    // Shortcut: user is in the target app, capture it
+    targetApp = await paste.getFrontmostApp();
+    console.log(`[Main] [shortcut] Target app for paste: ${targetApp}`);
+  } else {
+    // Button: user is in our Electron window, will capture target at paste time
+    targetApp = null;
+    console.log(`[Main] [button] Recording started from UI, will paste to focused app later`);
+  }
 
   isRecording = true;
   if (mainWindow) {
     mainWindow.webContents.send('recording-state', { isRecording: true });
   }
 
-  if (overlayWindow) {
+  // Only show overlay for shortcut-triggered recording
+  // Button-triggered: the UI button itself shows recording state (red)
+  if (source === 'shortcut' && overlayWindow) {
     overlayWindow.webContents.send('set-state', 'recording');
-    overlayWindow.show();
+    overlayWindow.showInactive();
   }
 
   if (recorderWindow) {
@@ -179,7 +195,7 @@ async function startRecording() {
   }
 
   updateTrayStatus('Recording...');
-  console.log('[Main] Recording started');
+  console.log(`[Main] Recording started (source: ${source})`);
   return true;
 }
 
@@ -191,7 +207,8 @@ function stopRecording() {
     mainWindow.webContents.send('recording-state', { isRecording: false });
   }
 
-  if (overlayWindow) {
+  // Only update overlay if it was shown (shortcut-triggered)
+  if (recordingSource === 'shortcut' && overlayWindow) {
     overlayWindow.webContents.send('set-state', 'processing');
   }
 
@@ -256,15 +273,32 @@ async function processAudio(audioData) {
     });
   }
 
-  // Hide overlay
-  if (overlayWindow) {
+  // Hide overlay only if it was shown (shortcut-triggered)
+  if (recordingSource === 'shortcut' && overlayWindow) {
     overlayWindow.hide();
   }
 
   // Handle paste based on settings
   if (settings.autoPaste) {
-    console.log(`[Main] Auto-pasting to target app: ${targetApp}`);
-    const pasteResult = await paste.typeText(text, targetApp);
+    let pasteTarget = targetApp;
+
+    if (!pasteTarget) {
+      // Button-triggered: user should have switched back to target app by now
+      // Get whatever app is currently focused
+      pasteTarget = await paste.getFrontmostApp();
+      const ownAppNames = ['Electron', 'electron', config.app.name];
+      if (pasteTarget && ownAppNames.includes(pasteTarget)) {
+        // Still in our app — just copy to clipboard, user will paste manually
+        console.log(`[Main] User still in Pabbly Flow, copying to clipboard`);
+        clipboard.writeText(text.trim());
+        showSuccess();
+        return;
+      }
+      console.log(`[Main] Button-triggered paste target: ${pasteTarget}`);
+    }
+
+    console.log(`[Main] Auto-pasting to target app: ${pasteTarget}`);
+    const pasteResult = await paste.typeText(text, pasteTarget);
 
     if (pasteResult.success) {
       console.log('[Main] Text pasted successfully!');
@@ -284,28 +318,30 @@ async function processAudio(audioData) {
 }
 
 function showSuccess() {
-  if (overlayWindow) {
+  if (recordingSource === 'shortcut' && overlayWindow) {
     overlayWindow.webContents.send('set-state', 'success');
+    setTimeout(() => {
+      if (overlayWindow) overlayWindow.hide();
+    }, 800);
   }
   updateTrayStatus('Ready');
-
-  setTimeout(() => {
-    if (overlayWindow) overlayWindow.hide();
-  }, 800);
 }
 
 function showError(message) {
   console.error(`[Main] Error: ${message}`);
 
-  if (overlayWindow) {
+  if (recordingSource === 'shortcut' && overlayWindow) {
     overlayWindow.webContents.send('set-state', 'error');
-  }
-  updateTrayStatus('Error');
-
-  setTimeout(() => {
-    if (overlayWindow) overlayWindow.hide();
+    setTimeout(() => {
+      if (overlayWindow) overlayWindow.hide();
+      updateTrayStatus('Ready');
+    }, 1500);
+  } else {
     updateTrayStatus('Ready');
-  }, 1500);
+  }
+  if (mainWindow) {
+    mainWindow.webContents.send('app:error', { message });
+  }
 }
 
 // ============ IPC Handlers ============
@@ -331,10 +367,11 @@ function setupIPC() {
     showError(errorMsg);
   });
 
-  // Recording toggle from renderer UI
+  // Recording toggle from renderer UI (button click)
   ipcMain.on('toggle-recording', () => {
+    console.log(`[Main] toggle-recording IPC received. isRecording=${isRecording}, recorderReady=${recorderReady}`);
     if (!isRecording) {
-      startRecording();
+      startRecording('button');
     } else {
       stopRecording();
     }
@@ -458,6 +495,26 @@ function setupIPC() {
     clearHistory();
     return { success: true };
   });
+
+  ipcMain.handle('history:delete', (event, id) => {
+    return deleteHistoryItem(id);
+  });
+
+  // Theme IPC
+  ipcMain.handle('theme:get', () => {
+    return getSetting('theme') || 'light';
+  });
+
+  ipcMain.handle('theme:set', (event, mode) => {
+    const { setSetting } = require('./store');
+    setSetting('theme', mode);
+    // Update main window background
+    if (mainWindow) {
+      mainWindow.setBackgroundColor(mode === 'dark' ? '#121212' : '#faf9f7');
+    }
+    return { success: true };
+  });
+
 }
 
 // ============ Tray Setup ============
@@ -559,7 +616,7 @@ function registerGlobalShortcut(shortcut) {
     console.log('=================================');
 
     if (!isRecording) {
-      startRecording();
+      startRecording('shortcut');
     } else {
       stopRecording();
     }
@@ -584,8 +641,10 @@ app.whenReady().then(async () => {
   console.log('========================================');
   console.log('');
 
-  // Hide dock icon on macOS
+  // Set custom dock icon and hide dock on macOS (dock shows when main window opens)
   if (process.platform === 'darwin' && app.dock) {
+    const dockIcon = nativeImage.createFromPath(path.join(__dirname, '../build/icon.png'));
+    app.dock.setIcon(dockIcon);
     app.dock.hide();
   }
 
@@ -596,6 +655,11 @@ app.whenReady().then(async () => {
   // Check dependencies
   const pasteAvailable = await paste.checkAvailability();
   console.log(`[Main] Paste available: ${pasteAvailable}`);
+  if (!pasteAvailable) {
+    console.log('[Main] ⚠️  AUTO-PASTE DISABLED: Accessibility permission required');
+    console.log('[Main]    Go to: System Settings → Privacy & Security → Accessibility');
+    console.log('[Main]    Enable: Electron (or Pabbly Flow)');
+  }
 
   const sttAvailable = await stt.checkHealth(settings.sttServerUrl);
   console.log(`[Main] STT service available: ${sttAvailable}`);

@@ -103,6 +103,18 @@ export function SettingsProvider({ children }) {
     }
   };
 
+  // Delete single history item
+  const deleteHistoryItem = async (id) => {
+    try {
+      if (window.electronAPI?.deleteHistoryItem) {
+        const updatedHistory = await window.electronAPI.deleteHistoryItem(id);
+        setHistory(updatedHistory);
+      }
+    } catch (error) {
+      console.error('Failed to delete history item:', error);
+    }
+  };
+
   // Clear history (electron-store)
   const clearHistory = async () => {
     try {
@@ -147,6 +159,7 @@ export function SettingsProvider({ children }) {
     history,
     addToHistory,
     clearHistory,
+    deleteHistoryItem,
     getStats,
     isRecording,
     toggleRecording,

@@ -12,6 +12,8 @@ import {
   Home as HomeIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material';
+import { useTheme as useAppTheme } from '../context/ThemeContext';
+import { useTheme } from '@mui/material/styles';
 
 const NAV_ITEMS = [
   { id: 'home', label: 'Home', icon: HomeIcon },
@@ -19,12 +21,15 @@ const NAV_ITEMS = [
 ];
 
 function Sidebar({ currentPage, onNavigate }) {
+  const theme = useTheme();
+  const { mode } = useAppTheme();
+
   return (
     <Box
       sx={{
         width: 240,
-        bgcolor: '#f5f3f0',
-        borderRight: '1px solid #e5e2de',
+        bgcolor: theme.palette.custom.sidebar,
+        borderRight: `1px solid ${theme.palette.divider}`,
         display: 'flex',
         flexDirection: 'column',
         WebkitAppRegion: 'drag',
@@ -47,7 +52,7 @@ function Sidebar({ currentPage, onNavigate }) {
             P
           </Typography>
         </Box>
-        <Typography sx={{ fontWeight: 600, fontSize: 16 }}>
+        <Typography sx={{ fontWeight: 600, fontSize: 16, color: theme.palette.text.primary }}>
           Pabbly Flow
         </Typography>
       </Box>
@@ -64,10 +69,14 @@ function Sidebar({ currentPage, onNavigate }) {
                 onClick={() => onNavigate(item.id)}
                 sx={{
                   borderRadius: 2,
-                  bgcolor: isActive ? 'white' : 'transparent',
-                  boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  bgcolor: isActive ? theme.palette.custom.activeItemBg : 'transparent',
+                  boxShadow: isActive
+                    ? mode === 'dark'
+                      ? '0 1px 3px rgba(0,0,0,0.3)'
+                      : '0 1px 3px rgba(0,0,0,0.08)'
+                    : 'none',
                   '&:hover': {
-                    bgcolor: isActive ? 'white' : '#f0ede9',
+                    bgcolor: isActive ? theme.palette.custom.activeItemBg : theme.palette.custom.sidebarHover,
                   },
                 }}
               >
@@ -75,7 +84,7 @@ function Sidebar({ currentPage, onNavigate }) {
                   <Icon
                     sx={{
                       fontSize: 20,
-                      color: isActive ? '#1a1a1a' : '#666',
+                      color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
                     }}
                   />
                 </ListItemIcon>
@@ -84,7 +93,7 @@ function Sidebar({ currentPage, onNavigate }) {
                   primaryTypographyProps={{
                     fontSize: 14,
                     fontWeight: isActive ? 500 : 400,
-                    color: isActive ? '#1a1a1a' : '#666',
+                    color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
                   }}
                 />
               </ListItemButton>

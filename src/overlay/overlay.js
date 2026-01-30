@@ -12,6 +12,7 @@ let timerInterval = null;
 // ============ DOM Elements ============
 const micBubble = document.getElementById('mic-bubble');
 const micIcon = document.getElementById('mic-icon');
+const statusText = document.getElementById('status-text');
 const durationEl = document.getElementById('duration');
 
 // ============ Timer Functions ============
@@ -56,28 +57,36 @@ function setState(state) {
     case 'recording':
       micBubble.classList.add('recording');
       micIcon.textContent = '🎤';
+      statusText.textContent = 'Listening...';
+      durationEl.style.display = '';
       startTimer();
       break;
 
     case 'processing':
       micBubble.classList.add('processing');
       micIcon.textContent = '⏳';
+      statusText.textContent = 'Processing...';
+      durationEl.style.display = 'none';
       stopTimer();
       break;
 
     case 'success':
       micBubble.classList.add('success');
       micIcon.textContent = '✓';
+      statusText.textContent = 'Done!';
+      durationEl.style.display = 'none';
       break;
 
     case 'error':
       micBubble.classList.add('error');
       micIcon.textContent = '✕';
-      durationEl.textContent = 'Error';
+      statusText.textContent = 'Error';
+      durationEl.style.display = 'none';
       break;
 
     default:
       resetTimer();
+      statusText.textContent = '';
   }
 
   console.log(`[Overlay] State changed to: ${state}`);

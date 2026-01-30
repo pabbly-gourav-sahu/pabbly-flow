@@ -5,14 +5,23 @@ import {
   Paper,
   Chip,
   Button,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
+import {
+  MicNone as MicNoneIcon,
+  ContentCopy as CopyIcon,
+  Delete as DeleteIcon,
+} from '@mui/icons-material';
+import { useTheme } from '@mui/material/styles';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 
 function Home() {
   const { user } = useAuth();
-  const { history, getStats, isRecording, toggleRecording } = useSettings();
+  const { history, getStats, deleteHistoryItem } = useSettings();
   const stats = getStats();
+  const theme = useTheme();
 
   // Group history by date
   const groupedHistory = history.reduce((groups, item) => {
@@ -47,11 +56,21 @@ function Home() {
     });
   };
 
+  const handleCopy = (text) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  const handleDelete = (id) => {
+    if (deleteHistoryItem) {
+      deleteHistoryItem(id);
+    }
+  };
+
   return (
     <Box sx={{ p: 4, maxWidth: 900 }}>
       {/* Welcome Section */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 600, mb: 1.5 }}>
+        <Typography variant="h4" sx={{ fontWeight: 600, mb: 1.5, color: theme.palette.text.primary }}>
           Welcome back, {user?.name || 'User'}
         </Typography>
 
@@ -61,8 +80,9 @@ function Home() {
             icon={<span style={{ fontSize: 16 }}>🔥</span>}
             label={`${stats.streak} days`}
             sx={{
-              bgcolor: 'white',
-              border: '1px solid #e5e2de',
+              bgcolor: theme.palette.custom.chipBg,
+              border: `1px solid ${theme.palette.divider}`,
+              color: theme.palette.text.primary,
               fontSize: 13,
               py: 2,
             }}
@@ -71,8 +91,9 @@ function Home() {
             icon={<span style={{ fontSize: 16 }}>📊</span>}
             label={`${stats.totalWords.toLocaleString()} words`}
             sx={{
-              bgcolor: 'white',
-              border: '1px solid #e5e2de',
+              bgcolor: theme.palette.custom.chipBg,
+              border: `1px solid ${theme.palette.divider}`,
+              color: theme.palette.text.primary,
               fontSize: 13,
               py: 2,
             }}
@@ -81,8 +102,9 @@ function Home() {
             icon={<span style={{ fontSize: 16 }}>⚡</span>}
             label={`${stats.wpm} WPM`}
             sx={{
-              bgcolor: 'white',
-              border: '1px solid #e5e2de',
+              bgcolor: theme.palette.custom.chipBg,
+              border: `1px solid ${theme.palette.divider}`,
+              color: theme.palette.text.primary,
               fontSize: 13,
               py: 2,
             }}
@@ -94,16 +116,16 @@ function Home() {
       <Paper
         elevation={0}
         sx={{
-          bgcolor: '#fef9e6',
+          bgcolor: theme.palette.custom.banner,
           p: 3,
           borderRadius: 3,
           mb: 4,
         }}
       >
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: theme.palette.text.primary }}>
           Make Flow sound like <em>you</em>
         </Typography>
-        <Typography sx={{ color: '#666', fontSize: 14, mb: 2 }}>
+        <Typography sx={{ color: theme.palette.custom.bannerText, fontSize: 14, mb: 2 }}>
           Flow adapts to how you write in different apps. Personalize your style
           for <strong>messages</strong>, <strong>work chats</strong>,{' '}
           <strong>emails</strong>, and <strong>other apps</strong> so every word
@@ -111,13 +133,13 @@ function Home() {
         </Typography>
         <Button
           variant="contained"
-          onClick={toggleRecording}
           sx={{
-            bgcolor: isRecording ? '#e53935' : '#1a1a1a',
-            '&:hover': { bgcolor: isRecording ? '#c62828' : '#333' },
+            bgcolor: theme.palette.custom.buttonBg,
+            color: theme.palette.custom.buttonText,
+            '&:hover': { bgcolor: theme.palette.custom.buttonHover },
           }}
         >
-          {isRecording ? 'Stop recording' : 'Start now'}
+          Personalize
         </Button>
       </Paper>
 
@@ -129,7 +151,7 @@ function Home() {
               sx={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: '#999',
+                color: theme.palette.text.secondary,
                 letterSpacing: 0.5,
                 mb: 1.5,
               }}
@@ -145,17 +167,20 @@ function Home() {
                   gap: 2,
                   p: 2,
                   mb: 1,
-                  border: '1px solid #e5e2de',
+                  border: `1px solid ${theme.palette.divider}`,
                   borderRadius: 2,
                   '&:hover': {
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                    boxShadow: theme.palette.custom.cardHover,
+                  },
+                  '&:hover .history-actions': {
+                    opacity: 1,
                   },
                 }}
               >
                 <Typography
                   sx={{
                     fontSize: 12,
-                    color: '#999',
+                    color: theme.palette.text.secondary,
                     minWidth: 70,
                     pt: 0.25,
                   }}
@@ -167,41 +192,67 @@ function Home() {
                     flex: 1,
                     fontSize: 14,
                     lineHeight: 1.6,
-                    color: '#1a1a1a',
+                    color: theme.palette.text.primary,
                   }}
                 >
                   {item.text}
                 </Typography>
+                <Box
+                  className="history-actions"
+                  sx={{
+                    display: 'flex',
+                    gap: 0.5,
+                    opacity: 0,
+                    transition: 'opacity 0.2s',
+                    alignItems: 'flex-start',
+                  }}
+                >
+                  <Tooltip title="Copy">
+                    <IconButton size="small" onClick={() => handleCopy(item.text)}>
+                      <CopyIcon sx={{ fontSize: 16, color: theme.palette.text.secondary }} />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Delete">
+                    <IconButton size="small" onClick={() => handleDelete(item.id)}>
+                      <DeleteIcon sx={{ fontSize: 16, color: '#e53935' }} />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
               </Paper>
             ))}
           </Box>
         ))
       ) : (
-        <Box sx={{ mb: 3 }}>
-          <Typography
+        /* Empty State */
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            py: 8,
+          }}
+        >
+          <Box
             sx={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              letterSpacing: 0.5,
-              mb: 1.5,
+              width: 80,
+              height: 80,
+              borderRadius: '50%',
+              bgcolor: theme.palette.custom.sidebar,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              mb: 3,
             }}
           >
-            TODAY
+            <MicNoneIcon sx={{ fontSize: 40, color: theme.palette.text.secondary }} />
+          </Box>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: theme.palette.text.primary }}>
+            No recordings yet
           </Typography>
-          <Paper
-            elevation={0}
-            sx={{
-              p: 4,
-              border: '1px solid #e5e2de',
-              borderRadius: 2,
-              textAlign: 'center',
-            }}
-          >
-            <Typography sx={{ color: '#999', fontSize: 14 }}>
-              No transcriptions yet. Press your shortcut to start recording!
-            </Typography>
-          </Paper>
+          <Typography sx={{ color: theme.palette.text.secondary, fontSize: 14, mb: 3, textAlign: 'center' }}>
+            Press your keyboard shortcut to start recording.
+          </Typography>
         </Box>
       )}
     </Box>

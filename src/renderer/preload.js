@@ -16,6 +16,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getHistory: () => ipcRenderer.invoke('history:get'),
   addToHistory: (item) => ipcRenderer.invoke('history:add', item),
   clearHistory: () => ipcRenderer.invoke('history:clear'),
+  deleteHistoryItem: (id) => ipcRenderer.invoke('history:delete', id),
+
+  // Theme
+  getTheme: () => ipcRenderer.invoke('theme:get'),
+  setTheme: (mode) => ipcRenderer.invoke('theme:set', mode),
 
   // Window controls
   closeWindow: () => ipcRenderer.send('window:close'),
@@ -42,5 +47,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   removeTranscriptionListener: () => {
     ipcRenderer.removeAllListeners('transcription:new');
+  },
+
+  // Listen for errors from main process
+  onError: (callback) => {
+    ipcRenderer.removeAllListeners('app:error');
+    ipcRenderer.on('app:error', (event, data) => callback(data));
+  },
+  removeErrorListener: () => {
+    ipcRenderer.removeAllListeners('app:error');
   },
 });

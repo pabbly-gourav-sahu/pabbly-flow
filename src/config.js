@@ -52,8 +52,8 @@ const config = {
 
   // Overlay window
   overlay: {
-    width: parseInt(process.env.OVERLAY_WIDTH, 120),
-    height: parseInt(process.env.OVERLAY_HEIGHT, 120),
+    width: parseInt(process.env.OVERLAY_WIDTH, 300),
+    height: parseInt(process.env.OVERLAY_HEIGHT, 70),
     margin: parseInt(process.env.OVERLAY_MARGIN, 20)
   }
 };
