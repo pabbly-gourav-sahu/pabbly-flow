@@ -101,13 +101,14 @@ function createOverlayWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  const { width, height, margin } = config.overlay;
+  const overlayWidth = 200;
+  const overlayHeight = 50;
 
   overlayWindow = new BrowserWindow({
-    width,
-    height,
-    x: screenWidth - width - margin,
-    y: screenHeight - height - margin,
+    width: overlayWidth,
+    height: overlayHeight,
+    x: Math.round((screenWidth - overlayWidth) / 2),
+    y: Math.round(screenHeight - screenHeight * 0.1 - overlayHeight),
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -179,12 +180,13 @@ async function startRecording(source = 'shortcut') {
   }
 
   isRecording = true;
-  if (mainWindow) {
+
+  // Only notify renderer for button-triggered recording (so shortcut doesn't affect the button)
+  if (source === 'button' && mainWindow) {
     mainWindow.webContents.send('recording-state', { isRecording: true });
   }
 
   // Only show overlay for shortcut-triggered recording
-  // Button-triggered: the UI button itself shows recording state (red)
   if (source === 'shortcut' && overlayWindow) {
     overlayWindow.webContents.send('set-state', 'recording');
     overlayWindow.showInactive();
@@ -203,7 +205,9 @@ function stopRecording() {
   if (!isRecording) return false;
 
   isRecording = false;
-  if (mainWindow) {
+
+  // Only notify renderer for button-triggered recording
+  if (recordingSource === 'button' && mainWindow) {
     mainWindow.webContents.send('recording-state', { isRecording: false });
   }
 
@@ -273,11 +277,6 @@ async function processAudio(audioData) {
     });
   }
 
-  // Hide overlay only if it was shown (shortcut-triggered)
-  if (recordingSource === 'shortcut' && overlayWindow) {
-    overlayWindow.hide();
-  }
-
   // Handle paste based on settings
   if (settings.autoPaste) {
     let pasteTarget = targetApp;
@@ -320,6 +319,7 @@ async function processAudio(audioData) {
 function showSuccess() {
   if (recordingSource === 'shortcut' && overlayWindow) {
     overlayWindow.webContents.send('set-state', 'success');
+    overlayWindow.showInactive();
     setTimeout(() => {
       if (overlayWindow) overlayWindow.hide();
     }, 800);
@@ -332,6 +332,8 @@ function showError(message) {
 
   if (recordingSource === 'shortcut' && overlayWindow) {
     overlayWindow.webContents.send('set-state', 'error');
+    overlayWindow.webContents.send('set-error-message', message);
+    overlayWindow.showInactive();
     setTimeout(() => {
       if (overlayWindow) overlayWindow.hide();
       updateTrayStatus('Ready');

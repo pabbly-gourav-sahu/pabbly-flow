@@ -11,7 +11,6 @@ let timerInterval = null;
 
 // ============ DOM Elements ============
 const micBubble = document.getElementById('mic-bubble');
-const micIcon = document.getElementById('mic-icon');
 const statusText = document.getElementById('status-text');
 const durationEl = document.getElementById('duration');
 
@@ -56,7 +55,6 @@ function setState(state) {
   switch (state) {
     case 'recording':
       micBubble.classList.add('recording');
-      micIcon.textContent = '🎤';
       statusText.textContent = 'Listening...';
       durationEl.style.display = '';
       startTimer();
@@ -64,7 +62,6 @@ function setState(state) {
 
     case 'processing':
       micBubble.classList.add('processing');
-      micIcon.textContent = '⏳';
       statusText.textContent = 'Processing...';
       durationEl.style.display = 'none';
       stopTimer();
@@ -72,14 +69,12 @@ function setState(state) {
 
     case 'success':
       micBubble.classList.add('success');
-      micIcon.textContent = '✓';
       statusText.textContent = 'Done!';
       durationEl.style.display = 'none';
       break;
 
     case 'error':
       micBubble.classList.add('error');
-      micIcon.textContent = '✕';
       statusText.textContent = 'Error';
       durationEl.style.display = 'none';
       break;
@@ -95,6 +90,12 @@ function setState(state) {
 // ============ IPC Listeners ============
 ipcRenderer.on('set-state', (event, state) => {
   setState(state);
+});
+
+ipcRenderer.on('set-error-message', (event, message) => {
+  if (message && statusText) {
+    statusText.textContent = message;
+  }
 });
 
 ipcRenderer.on('reset', () => {
