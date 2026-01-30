@@ -10,8 +10,6 @@
  * 4. Main process handles STT and paste (more reliable, no CORS issues)
  */
 
-const { ipcRenderer } = require('electron');
-
 // ============ Configuration ============
 const CONFIG = {
   mimeType: 'audio/webm;codecs=opus', // Preferred format
@@ -68,7 +66,7 @@ async function initMediaRecorder() {
 
       if (audioChunks.length === 0) {
         console.log('[Recorder] No audio data captured');
-        ipcRenderer.send('recording-error', 'No audio data captured');
+        window.recorderAPI.sendRecordingError('No audio data captured');
         return;
       }
 
@@ -85,7 +83,7 @@ async function initMediaRecorder() {
 
         // Send audio data to main process for STT
         // Main process will handle transcription and paste
-        ipcRenderer.send('audio-captured', {
+        window.recorderAPI.sendAudioCaptured({
           buffer: Array.from(uint8Array), // Convert to regular array for IPC
           mimeType: currentMimeType,
           size: audioBlob.size
@@ -93,7 +91,7 @@ async function initMediaRecorder() {
 
       } catch (error) {
         console.error('[Recorder] Failed to process audio:', error);
-        ipcRenderer.send('recording-error', error.message);
+        window.recorderAPI.sendRecordingError(error.message);
       }
 
       // Clear chunks for next recording
@@ -103,17 +101,17 @@ async function initMediaRecorder() {
     mediaRecorder.onerror = (event) => {
       console.error('[Recorder] MediaRecorder error:', event.error);
       isRecording = false;
-      ipcRenderer.send('recording-error', event.error?.message || 'Recording error');
+      window.recorderAPI.sendRecordingError(event.error?.message || 'Recording error');
     };
 
     mediaRecorder.onstart = () => {
       console.log('[Recorder] MediaRecorder started');
       isRecording = true;
-      ipcRenderer.send('recording-started');
+      window.recorderAPI.sendRecordingStarted();
     };
 
     console.log('[Recorder] MediaRecorder initialized successfully');
-    ipcRenderer.send('recorder-ready');
+    window.recorderAPI.sendReady();
 
   } catch (error) {
     console.error('[Recorder] Failed to initialize:', error);
@@ -125,7 +123,7 @@ async function initMediaRecorder() {
       errorMessage = 'No microphone found. Please connect a microphone.';
     }
 
-    ipcRenderer.send('recorder-error', errorMessage);
+    window.recorderAPI.sendRecordingError(errorMessage);
   }
 }
 
@@ -133,7 +131,7 @@ async function initMediaRecorder() {
 function startRecording() {
   if (!mediaRecorder) {
     console.log('[Recorder] MediaRecorder not initialized');
-    ipcRenderer.send('recording-error', 'Recorder not initialized');
+    window.recorderAPI.sendRecordingError('Recorder not initialized');
     return false;
   }
 
@@ -162,12 +160,12 @@ function stopRecording() {
 }
 
 // ============ IPC Handlers ============
-ipcRenderer.on('start-recording', () => {
+window.recorderAPI.onStartRecording(() => {
   console.log('[Recorder] Received start-recording command');
   startRecording();
 });
 
-ipcRenderer.on('stop-recording', () => {
+window.recorderAPI.onStopRecording(() => {
   console.log('[Recorder] Received stop-recording command');
   stopRecording();
 });

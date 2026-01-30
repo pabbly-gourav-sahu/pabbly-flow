@@ -119,8 +119,9 @@ function createOverlayWindow() {
     focusable: false,
     show: false,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'overlay/overlay-preload.js')
     }
   });
 
@@ -142,8 +143,9 @@ function createRecorderWindow() {
     height: 300,
     show: false,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'recorder/recorder-preload.js')
     }
   });
 

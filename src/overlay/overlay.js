@@ -3,8 +3,6 @@
  * Handles recording timer display and state updates
  */
 
-const { ipcRenderer } = require('electron');
-
 // ============ State ============
 let startTime = null;
 let timerInterval = null;
@@ -88,17 +86,17 @@ function setState(state) {
 }
 
 // ============ IPC Listeners ============
-ipcRenderer.on('set-state', (event, state) => {
+window.overlayAPI.onSetState((state) => {
   setState(state);
 });
 
-ipcRenderer.on('set-error-message', (event, message) => {
+window.overlayAPI.onSetErrorMessage((message) => {
   if (message && statusText) {
     statusText.textContent = message;
   }
 });
 
-ipcRenderer.on('reset', () => {
+window.overlayAPI.onReset(() => {
   resetTimer();
   setState('recording');
 });
