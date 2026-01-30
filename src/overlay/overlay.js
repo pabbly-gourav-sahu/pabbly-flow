@@ -1,0 +1,98 @@
+/**
+ * Pabbly Flow - Overlay Script
+ * Handles recording timer display and state updates
+ */
+
+const { ipcRenderer } = require('electron');
+
+// ============ State ============
+let startTime = null;
+let timerInterval = null;
+
+// ============ DOM Elements ============
+const micBubble = document.getElementById('mic-bubble');
+const micIcon = document.getElementById('mic-icon');
+const durationEl = document.getElementById('duration');
+
+// ============ Timer Functions ============
+function formatDuration(ms) {
+  const seconds = Math.floor(ms / 1000);
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function startTimer() {
+  startTime = Date.now();
+  timerInterval = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    durationEl.textContent = formatDuration(elapsed);
+  }, 100);
+  console.log('[Overlay] Timer started');
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  const elapsed = startTime ? Date.now() - startTime : 0;
+  console.log(`[Overlay] Timer stopped. Duration: ${formatDuration(elapsed)}`);
+  return elapsed;
+}
+
+function resetTimer() {
+  stopTimer();
+  startTime = null;
+  durationEl.textContent = '0:00';
+}
+
+// ============ State Management ============
+function setState(state) {
+  // Remove all state classes
+  micBubble.classList.remove('recording', 'processing', 'success', 'error');
+
+  switch (state) {
+    case 'recording':
+      micBubble.classList.add('recording');
+      micIcon.textContent = '🎤';
+      startTimer();
+      break;
+
+    case 'processing':
+      micBubble.classList.add('processing');
+      micIcon.textContent = '⏳';
+      stopTimer();
+      break;
+
+    case 'success':
+      micBubble.classList.add('success');
+      micIcon.textContent = '✓';
+      break;
+
+    case 'error':
+      micBubble.classList.add('error');
+      micIcon.textContent = '✕';
+      durationEl.textContent = 'Error';
+      break;
+
+    default:
+      resetTimer();
+  }
+
+  console.log(`[Overlay] State changed to: ${state}`);
+}
+
+// ============ IPC Listeners ============
+ipcRenderer.on('set-state', (event, state) => {
+  setState(state);
+});
+
+ipcRenderer.on('reset', () => {
+  resetTimer();
+  setState('recording');
+});
+
+// ============ Initialize ============
+console.log('[Overlay] Overlay script loaded');
+setState('recording');

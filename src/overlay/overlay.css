@@ -1,0 +1,121 @@
+/**
+ * Pabbly Flow - Overlay Styles
+ * Floating mic bubble that appears during recording
+ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  -webkit-app-region: drag; /* Allow dragging the window */
+}
+
+#overlay-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#mic-bubble {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(229, 57, 53, 0.5);
+  cursor: default;
+  -webkit-app-region: drag;
+}
+
+#mic-icon {
+  font-size: 24px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+#duration {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.5px;
+}
+
+/* Pulsing ring animation */
+#pulse-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid rgba(229, 57, 53, 0.6);
+  animation: pulse 1.5s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0% {
+    width: 64px;
+    height: 64px;
+    opacity: 1;
+  }
+  100% {
+    width: 100px;
+    height: 100px;
+    opacity: 0;
+  }
+}
+
+/* Processing state (after recording stops, before STT completes) */
+#mic-bubble.processing {
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+  box-shadow: 0 4px 20px rgba(255, 152, 0, 0.5);
+}
+
+#mic-bubble.processing #pulse-ring {
+  border-color: rgba(255, 152, 0, 0.6);
+}
+
+#mic-bubble.processing #mic-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Success state */
+#mic-bubble.success {
+  background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+  box-shadow: 0 4px 20px rgba(76, 175, 80, 0.5);
+}
+
+#mic-bubble.success #pulse-ring {
+  display: none;
+}
+
+/* Error state */
+#mic-bubble.error {
+  background: linear-gradient(135deg, #757575 0%, #616161 100%);
+  box-shadow: 0 4px 20px rgba(117, 117, 117, 0.5);
+}
+
+#mic-bubble.error #pulse-ring {
+  display: none;
+}

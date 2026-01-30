@@ -1,0 +1,91 @@
+# Pabbly Flow - Electron Builder Configuration
+# https://www.electron.build/configuration
+
+appId: com.pabbly.flow
+productName: Pabbly Flow
+copyright: Copyright © 2024 Pabbly
+
+# Directories
+directories:
+  output: dist
+  buildResources: build
+
+# Files to include
+files:
+  - src/**/*
+  - assets/**/*
+  - node_modules/**/*
+  - package.json
+
+# Extra resources (copied to app resources folder)
+extraResources:
+  - from: .env
+    to: .env
+
+# macOS Configuration
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.png
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: "Pabbly Flow needs microphone access to record your voice for transcription."
+    NSAppleEventsUsageDescription: "Pabbly Flow needs accessibility access to paste transcribed text at your cursor location."
+
+# DMG Configuration
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+  window:
+    width: 540
+    height: 400
+
+# Windows Configuration
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+# NSIS Installer Configuration
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Pabbly Flow
+  installerIcon: build/icon.png
+  uninstallerIcon: build/icon.png
+
+# Linux Configuration
+linux:
+  icon: build/icon.png
+  target:
+    - AppImage
+    - deb
+  category: Utility
+  synopsis: Voice-to-text with system-wide typing
+  description: Record your voice and transcribe it to text, automatically pasting at your cursor location.
+
+# Publish configuration (for auto-updates - optional)
+# publish:
+#   provider: github
+#   owner: your-username
+#   repo: pabbly-flow
+
+# Build options
+asar: true
+compression: maximum
