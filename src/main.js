@@ -299,6 +299,12 @@ async function processAudio(audioData) {
       console.log(`[Main] Button-triggered paste target: ${pasteTarget}`);
     }
 
+    // Hide overlay before pasting to prevent any focus interference
+    if (recordingSource === 'shortcut' && overlayWindow) {
+      overlayWindow.hide();
+    }
+    await new Promise(r => setTimeout(r, 50)); // let OS process the hide
+
     console.log(`[Main] Auto-pasting to target app: ${pasteTarget}`);
     const pasteResult = await paste.typeText(text, pasteTarget);
 

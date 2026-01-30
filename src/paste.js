@@ -41,10 +41,12 @@ function activateApp(appName) {
   return new Promise((resolve) => {
     if (process.platform === 'darwin' && appName) {
       console.log(`[Paste] Activating app: ${appName}`);
-      // Use 'activate' and then verify it became frontmost
+      // Use 'set frontmost' instead of 'activate' to preserve cursor position
       const script = `
-        tell application "${appName}" to activate
-        delay 0.1
+        tell application "System Events"
+          set frontmost of process "${appName}" to true
+        end tell
+        delay 0.15
         tell application "System Events"
           set frontApp to name of first application process whose frontmost is true
         end tell
@@ -110,14 +112,20 @@ async function typeText(text, targetApp = null) {
     return { success: false, error: 'Failed to copy to clipboard' };
   }
 
-  // Step 3: Activate target app (the app where user's cursor was)
+  // Step 3: Activate target app (only if it's not already frontmost)
   if (targetApp && process.platform === 'darwin') {
-    const activated = await activateApp(targetApp);
-    if (!activated) {
-      console.warn(`[Paste] Could not activate ${targetApp}, attempting paste anyway`);
+    const currentFront = await getFrontmostApp();
+    if (currentFront !== targetApp) {
+      console.log(`[Paste] Target "${targetApp}" not frontmost (current: "${currentFront}"), activating...`);
+      const activated = await activateApp(targetApp);
+      if (!activated) {
+        console.warn(`[Paste] Could not activate ${targetApp}, attempting paste anyway`);
+      }
+    } else {
+      console.log('[Paste] Target app already frontmost, skipping activation');
     }
-    // Small extra delay to let the app fully regain focus and cursor
-    await sleep(50);
+    // Delay to let the app stabilize focus and cursor
+    await sleep(100);
   }
 
   // Step 4: Simulate paste keystroke (Cmd+V)
