@@ -6,13 +6,16 @@
   "author": "Pabbly",
   "license": "MIT",
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --enable-logging",
-    "build": "electron-builder",
-    "build:mac": "electron-builder --mac",
-    "build:win": "electron-builder --win",
-    "build:linux": "electron-builder --linux",
-    "build:all": "electron-builder -mwl",
+    "start": "unset ELECTRON_RUN_AS_NODE && electron .",
+    "dev": "concurrently \"npm run dev:react\" \"npm run dev:electron\"",
+    "dev:react": "vite",
+    "dev:electron": "unset ELECTRON_RUN_AS_NODE && NODE_ENV=development electron . --enable-logging",
+    "build:react": "vite build",
+    "build": "npm run build:react && electron-builder",
+    "build:mac": "npm run build:react && electron-builder --mac",
+    "build:win": "npm run build:react && electron-builder --win",
+    "build:linux": "npm run build:react && electron-builder --linux",
+    "build:all": "npm run build:react && electron-builder -mwl",
     "postinstall": "electron-builder install-app-deps",
     "generate-icons": "node scripts/generate-icons.js"
   },
@@ -25,6 +28,7 @@
     },
     "files": [
       "src/**/*",
+      "dist-react/**/*",
       "assets/**/*",
       "node_modules/**/*",
       "package.json"
@@ -41,7 +45,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "hardenedRuntime": true,
@@ -68,7 +75,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -80,17 +89,29 @@
     },
     "linux": {
       "icon": "build/icon.png",
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Utility"
     }
   },
   "devDependencies": {
-    "electron": "^27.0.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "concurrently": "^9.2.1",
+    "electron": "^28.3.3",
     "electron-builder": "^26.4.0",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "vite": "^7.3.1"
   },
   "dependencies": {
-    "dotenv": "^17.2.3",
-    "electron-store": "^8.2.0"
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.7",
+    "@mui/material": "^7.3.7",
+    "dotenv": "^16.4.5",
+    "electron-store": "^8.2.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   }
 }

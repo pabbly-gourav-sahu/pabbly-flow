@@ -17,7 +17,7 @@ const path = require('path');
 const config = require('./config');
 const stt = require('./stt');
 const paste = require('./paste');
-const { getSettings, setSettings, getSetting, resetSettings } = require('./store');
+const { getSettings, setSettings, getSetting, resetSettings, getHistory, addToHistory, clearHistory } = require('./store');
 
 // ============ State ============
 let tray = null;
@@ -25,46 +25,71 @@ let isRecording = false;
 let overlayWindow = null;
 let recorderWindow = null;
 let settingsWindow = null;
+let mainWindow = null;
 let recorderReady = false;
 let targetApp = null;
 let currentShortcut = null;
 
-// ============ Settings Window ============
-function createSettingsWindow() {
-  // If settings window already exists, focus it
-  if (settingsWindow) {
-    settingsWindow.focus();
+// Check if running in development (app.isPackaged is checked later when app is ready)
+let isDev = process.env.NODE_ENV === 'development';
+
+// ============ Main App Window ============
+function createMainWindow() {
+  // If main window already exists, focus it
+  if (mainWindow) {
+    mainWindow.focus();
     return;
   }
 
-  settingsWindow = new BrowserWindow({
-    width: 520,
-    height: 580,
-    minWidth: 480,
-    minHeight: 500,
+  mainWindow = new BrowserWindow({
+    width: 1100,
+    height: 700,
+    minWidth: 900,
+    minHeight: 600,
     show: false,
-    frame: false,
+    frame: true,
     titleBarStyle: 'hiddenInset',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#faf9f7',
     resizable: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'settings/preload.js')
+      preload: path.join(__dirname, 'renderer/preload.js')
     }
   });
 
-  settingsWindow.loadFile(path.join(__dirname, 'settings/settings.html'));
+  // Load React app - dev server or built files
+  if (isDev) {
+    mainWindow.loadURL('http://localhost:5173');
+    // Open DevTools in development
+    // mainWindow.webContents.openDevTools();
+  } else {
+    mainWindow.loadFile(path.join(__dirname, '../dist-react/index.html'));
+  }
 
-  settingsWindow.once('ready-to-show', () => {
-    settingsWindow.show();
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    // Show dock icon when main window opens
+    if (process.platform === 'darwin' && app.dock) {
+      app.dock.show();
+    }
   });
 
-  settingsWindow.on('closed', () => {
-    settingsWindow = null;
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    // Hide dock icon when main window closes
+    if (process.platform === 'darwin' && app.dock) {
+      app.dock.hide();
+    }
   });
 
-  console.log('[Main] Settings window created');
+  console.log('[Main] Main app window created');
+}
+
+// ============ Settings Window (Legacy - keeping for tray) ============
+function createSettingsWindow() {
+  // Open main window instead, navigate to settings
+  createMainWindow();
 }
 
 // ============ Overlay Window ============
@@ -140,6 +165,9 @@ async function startRecording() {
   console.log(`[Main] Target app for paste: ${targetApp}`);
 
   isRecording = true;
+  if (mainWindow) {
+    mainWindow.webContents.send('recording-state', { isRecording: true });
+  }
 
   if (overlayWindow) {
     overlayWindow.webContents.send('set-state', 'recording');
@@ -159,6 +187,9 @@ function stopRecording() {
   if (!isRecording) return false;
 
   isRecording = false;
+  if (mainWindow) {
+    mainWindow.webContents.send('recording-state', { isRecording: false });
+  }
 
   if (overlayWindow) {
     overlayWindow.webContents.send('set-state', 'processing');
@@ -215,6 +246,14 @@ async function processAudio(audioData) {
     console.log('[Main] No text transcribed');
     showError('No speech detected');
     return;
+  }
+
+  // Send transcription to main window for history
+  if (mainWindow) {
+    mainWindow.webContents.send('transcription:new', {
+      text: text.trim(),
+      timestamp: new Date().toISOString()
+    });
   }
 
   // Hide overlay
@@ -292,6 +331,15 @@ function setupIPC() {
     showError(errorMsg);
   });
 
+  // Recording toggle from renderer UI
+  ipcMain.on('toggle-recording', () => {
+    if (!isRecording) {
+      startRecording();
+    } else {
+      stopRecording();
+    }
+  });
+
   // Settings IPC
   ipcMain.handle('settings:get', () => {
     return getSettings();
@@ -362,6 +410,54 @@ function setupIPC() {
       settingsWindow.close();
     }
   });
+
+  // Window controls
+  ipcMain.on('window:close', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) win.close();
+  });
+
+  ipcMain.on('window:minimize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) win.minimize();
+  });
+
+  ipcMain.on('window:maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) {
+      if (win.isMaximized()) {
+        win.unmaximize();
+      } else {
+        win.maximize();
+      }
+    }
+  });
+
+  // App info
+  ipcMain.handle('app:version', () => {
+    return app.getVersion();
+  });
+
+  // Send transcription to main window
+  ipcMain.on('transcription:send', (event, text) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('transcription:new', { text, timestamp: new Date().toISOString() });
+    }
+  });
+
+  // History IPC (stored in electron-store for persistence)
+  ipcMain.handle('history:get', () => {
+    return getHistory();
+  });
+
+  ipcMain.handle('history:add', (event, item) => {
+    return addToHistory(item);
+  });
+
+  ipcMain.handle('history:clear', () => {
+    clearHistory();
+    return { success: true };
+  });
 }
 
 // ============ Tray Setup ============
@@ -399,6 +495,10 @@ function updateTrayMenu(status) {
     { type: 'separator' },
     { label: `Shortcut: ${shortcutDisplay}`, enabled: false },
     { type: 'separator' },
+    {
+      label: 'Open App',
+      click: () => createMainWindow()
+    },
     {
       label: 'Settings...',
       click: () => createSettingsWindow()
@@ -510,6 +610,9 @@ app.whenReady().then(async () => {
   createRecorderWindow();
   createTray();
   registerGlobalShortcut();
+
+  // Open main window automatically
+  createMainWindow();
 
   console.log('');
   console.log('[Main] App is running in the background.');

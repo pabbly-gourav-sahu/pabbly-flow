@@ -96,6 +96,41 @@ function resetSettings() {
   store.clear();
 }
 
+// ============ History Management ============
+const MAX_HISTORY_ITEMS = 100;
+
+/**
+ * Get transcription history
+ * @returns {Array}
+ */
+function getHistory() {
+  return store.get('history', []);
+}
+
+/**
+ * Add item to history
+ * @param {Object} item - { text, timestamp }
+ * @returns {Array} updated history
+ */
+function addToHistory(item) {
+  const history = getHistory();
+  const newItem = {
+    id: Date.now(),
+    text: item.text,
+    timestamp: item.timestamp || new Date().toISOString(),
+  };
+  const updated = [newItem, ...history].slice(0, MAX_HISTORY_ITEMS);
+  store.set('history', updated);
+  return updated;
+}
+
+/**
+ * Clear all history
+ */
+function clearHistory() {
+  store.set('history', []);
+}
+
 module.exports = {
   store,
   getSettings,
@@ -103,5 +138,8 @@ module.exports = {
   getSetting,
   setSetting,
   resetSettings,
+  getHistory,
+  addToHistory,
+  clearHistory,
   schema
 };
