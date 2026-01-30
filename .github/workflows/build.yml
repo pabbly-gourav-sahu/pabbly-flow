@@ -3,8 +3,12 @@ name: Build Pabbly Flow
 on:
   push:
     tags:
-      - 'v*'  # Trigger on version tags like v1.0.0
-  workflow_dispatch:  # Allow manual trigger
+      - 'v*'
+  workflow_dispatch:
+
+# Add write permissions for releases
+permissions:
+  contents: write
 
 jobs:
   build-windows:
@@ -25,8 +29,11 @@ jobs:
       - name: Generate icons
         run: npm run generate-icons
 
+      - name: Create .env file
+        run: cp .env.example .env
+
       - name: Build Windows
-        run: npm run build:win
+        run: npx electron-builder --win --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -54,8 +61,11 @@ jobs:
       - name: Generate icons
         run: npm run generate-icons
 
+      - name: Create .env file
+        run: cp .env.example .env
+
       - name: Build macOS
-        run: npm run build:mac
+        run: npx electron-builder --mac --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -72,6 +82,9 @@ jobs:
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
+
+      - name: List downloaded files
+        run: find . -type f -name "*.exe" -o -name "*.dmg"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
