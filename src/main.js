@@ -99,7 +99,8 @@ function createSettingsWindow() {
 function createOverlayWindow() {
   const { screen } = require('electron');
   const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  // Use full display size (not workAreaSize) for consistent positioning
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
 
   const overlayWidth = 200;
   const overlayHeight = 50;
@@ -108,13 +109,13 @@ function createOverlayWindow() {
     width: overlayWidth,
     height: overlayHeight,
     x: Math.round((screenWidth - overlayWidth) / 2),
-    y: Math.round(screenHeight - screenHeight * 0.1 - overlayHeight),
+    y: Math.round(screenHeight - (screenHeight * 0.07) - overlayHeight),
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
-    movable: true,
+    movable: false,
     hasShadow: false,
     focusable: false,
     show: false,
@@ -127,6 +128,8 @@ function createOverlayWindow() {
 
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+  // Make overlay fully click-through at OS level
+  overlayWindow.setIgnoreMouseEvents(true);
   overlayWindow.loadFile(path.join(__dirname, 'overlay/overlay.html'));
 
   overlayWindow.on('closed', () => {
@@ -134,6 +137,18 @@ function createOverlayWindow() {
   });
 
   console.log('[Main] Overlay window created');
+}
+
+/**
+ * Show overlay without stealing focus, re-applying OS-level properties.
+ * macOS can reset these after hide/show cycles.
+ */
+function showOverlay() {
+  if (!overlayWindow) return;
+  overlayWindow.showInactive();
+  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+  overlayWindow.setIgnoreMouseEvents(true);
 }
 
 // ============ Recorder Window (Hidden) ============
@@ -191,7 +206,7 @@ async function startRecording(source = 'shortcut') {
   // Only show overlay for shortcut-triggered recording
   if (source === 'shortcut' && overlayWindow) {
     overlayWindow.webContents.send('set-state', 'recording');
-    overlayWindow.showInactive();
+    showOverlay();
   }
 
   if (recorderWindow) {
@@ -299,12 +314,9 @@ async function processAudio(audioData) {
       console.log(`[Main] Button-triggered paste target: ${pasteTarget}`);
     }
 
-    // Hide overlay before pasting to prevent any focus interference
-    if (recordingSource === 'shortcut' && overlayWindow) {
-      overlayWindow.hide();
-    }
-    await new Promise(r => setTimeout(r, 50)); // let OS process the hide
-
+    // Overlay stays visible during paste — with setIgnoreMouseEvents(true)
+    // and type:'panel', it cannot interfere with focus. Hiding it would
+    // cause macOS to shift focus to wrong window.
     console.log(`[Main] Auto-pasting to target app: ${pasteTarget}`);
     const pasteResult = await paste.typeText(text, pasteTarget);
 
@@ -328,7 +340,7 @@ async function processAudio(audioData) {
 function showSuccess() {
   if (recordingSource === 'shortcut' && overlayWindow) {
     overlayWindow.webContents.send('set-state', 'success');
-    overlayWindow.showInactive();
+    showOverlay();
     setTimeout(() => {
       if (overlayWindow) overlayWindow.hide();
     }, 800);
@@ -342,7 +354,7 @@ function showError(message) {
   if (recordingSource === 'shortcut' && overlayWindow) {
     overlayWindow.webContents.send('set-state', 'error');
     overlayWindow.webContents.send('set-error-message', message);
-    overlayWindow.showInactive();
+    showOverlay();
     setTimeout(() => {
       if (overlayWindow) overlayWindow.hide();
       updateTrayStatus('Ready');

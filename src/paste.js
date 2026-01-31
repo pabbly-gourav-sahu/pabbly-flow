@@ -41,16 +41,27 @@ function activateApp(appName) {
   return new Promise((resolve) => {
     if (process.platform === 'darwin' && appName) {
       console.log(`[Paste] Activating app: ${appName}`);
-      // Use 'set frontmost' instead of 'activate' to preserve cursor position
+      // Use 'set frontmost' instead of 'activate' to preserve cursor position.
+      // Includes retry: if first attempt doesn't take, wait and try once more.
       const script = `
         tell application "System Events"
           set frontmost of process "${appName}" to true
         end tell
-        delay 0.15
+        delay 0.1
         tell application "System Events"
-          set frontApp to name of first application process whose frontmost is true
+          set currentFront to name of first application process whose frontmost is true
         end tell
-        return frontApp
+        if currentFront is not "${appName}" then
+          delay 0.1
+          tell application "System Events"
+            set frontmost of process "${appName}" to true
+          end tell
+          delay 0.1
+          tell application "System Events"
+            set currentFront to name of first application process whose frontmost is true
+          end tell
+        end if
+        return currentFront
       `;
       exec(`osascript -e '${script}'`, (error, stdout) => {
         if (error) {
@@ -124,8 +135,8 @@ async function typeText(text, targetApp = null) {
     } else {
       console.log('[Paste] Target app already frontmost, skipping activation');
     }
-    // Delay to let the app stabilize focus and cursor
-    await sleep(100);
+    // Short delay — activateApp already confirms focus internally
+    await sleep(50);
   }
 
   // Step 4: Simulate paste keystroke (Cmd+V)

@@ -14,7 +14,6 @@ html, body {
   height: 100%;
   overflow: hidden;
   background: transparent;
-  -webkit-app-region: drag;
 }
 
 #overlay-container {
@@ -37,8 +36,7 @@ html, body {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-  cursor: default;
-  -webkit-app-region: drag;
+  pointer-events: none;
   white-space: nowrap;
 }
 
