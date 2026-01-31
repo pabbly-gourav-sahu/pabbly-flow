@@ -15,6 +15,20 @@ jobs:
         with:
           node-version: 20
 
+      - name: Create .env file
+        run: |
+          cat > .env << 'EOF'
+          STT_SERVER_URL=http://35.165.164.32:8000/transcribe
+          STT_HEALTH_ENDPOINT=/health
+          STT_TIMEOUT=30000
+          DEFAULT_SHORTCUT=CommandOrControl+Shift+Space
+          DEFAULT_WHISPER_MODEL=base
+          DEFAULT_LANGUAGE=auto
+          DEFAULT_AUTO_PASTE=true
+          DEFAULT_TRANSLATE_TO_ENGLISH=true
+          APP_NAME=Pabbly Flow
+          EOF
+
       - name: Install dependencies
         run: npm install
 
@@ -38,11 +52,27 @@ jobs:
         with:
           node-version: 20
 
+      - name: Create .env file
+        run: |
+          @"
+          STT_SERVER_URL=http://35.165.164.32:8000/transcribe
+          STT_HEALTH_ENDPOINT=/health
+          STT_TIMEOUT=30000
+          DEFAULT_SHORTCUT=CommandOrControl+Shift+Space
+          DEFAULT_WHISPER_MODEL=base
+          DEFAULT_LANGUAGE=auto
+          DEFAULT_AUTO_PASTE=true
+          DEFAULT_TRANSLATE_TO_ENGLISH=true
+          APP_NAME=Pabbly Flow
+          "@ | Out-File -FilePath .env -Encoding utf8
+
       - name: Install dependencies
         run: npm install
 
       - name: Build Windows EXE
         run: npm run build:win
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Upload Windows EXE
         uses: actions/upload-artifact@v4
