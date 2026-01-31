@@ -34,8 +34,8 @@ let recorderReady = false;
 let targetApp = null;
 let currentShortcut = null;
 
-// Check if running in development (app.isPackaged is checked later when app is ready)
-let isDev = process.env.NODE_ENV === 'development';
+// Check if running in development
+let isDev = !app.isPackaged;
 
 // ============ Main App Window ============
 function createMainWindow() {
@@ -71,15 +71,31 @@ function createMainWindow() {
     // Open DevTools in development
     // mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist-react/index.html'));
+    const filePath = path.join(__dirname, '../dist-react/index.html');
+    console.log('[Main] Loading production file:', filePath);
+    mainWindow.loadFile(filePath).catch((err) => {
+      console.error('[Main] Failed to load file:', err);
+    });
   }
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-    // Show dock icon when main window opens
-    if (process.platform === 'darwin' && app.dock) {
-      app.dock.show();
+  // Show window when ready
+  const showWindow = () => {
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show();
+      if (process.platform === 'darwin' && app.dock) {
+        app.dock.show();
+      }
     }
+  };
+
+  mainWindow.once('ready-to-show', showWindow);
+
+  // Fallback: force show after 3 seconds if ready-to-show never fires
+  setTimeout(showWindow, 3000);
+
+  // Log load errors
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error(`[Main] Page failed to load: ${errorDescription} (code: ${errorCode})`);
   });
 
   mainWindow.on('closed', () => {
