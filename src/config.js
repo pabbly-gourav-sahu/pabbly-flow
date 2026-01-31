@@ -36,7 +36,7 @@ const config = {
 
   // STT Server
   stt: {
-    serverUrl: process.env.STT_SERVER_URL || 'http://localhost:8000/transcribe',
+    serverUrl: process.env.STT_SERVER_URL || 'http://35.165.164.32:8000/transcribe',
     healthEndpoint: process.env.STT_HEALTH_ENDPOINT || '/health',
     timeout: parseInt(process.env.STT_TIMEOUT, 30000)
   },
