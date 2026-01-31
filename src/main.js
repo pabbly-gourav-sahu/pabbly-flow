@@ -13,6 +13,10 @@
 const { app, Tray, Menu, globalShortcut, nativeImage, BrowserWindow, ipcMain, clipboard } = require('electron');
 const path = require('path');
 
+// Suppress EPIPE errors when stdout/stderr pipe is closed (e.g., launching from Finder on macOS)
+process.stdout?.on('error', (err) => { if (err.code !== 'EPIPE') throw err; });
+process.stderr?.on('error', (err) => { if (err.code !== 'EPIPE') throw err; });
+
 // Import modules
 const config = require('./config');
 const stt = require('./stt');
