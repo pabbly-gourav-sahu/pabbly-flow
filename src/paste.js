@@ -49,9 +49,12 @@ public class ForegroundHelper {
 [ForegroundHelper]::GetName()
 `;
       runPowershell(psScript).then(name => {
-        console.log(`[Paste] Frontmost app (Windows): ${name}`);
+        console.log(`[Paste] Frontmost app (Windows): "${name}"`);
         resolve(name || null);
-      }).catch(() => resolve(null));
+      }).catch((err) => {
+        console.error('[Paste] Windows getFrontmostApp FAILED:', err.message);
+        resolve(null);
+      });
     } else {
       resolve(null);
     }
@@ -131,9 +134,13 @@ public class WinActivator {
 `;
       runPowershell(psScript).then(result => {
         const success = result === 'true';
+        console.log(`[Paste] Windows activateApp result: "${result}", success: ${success}`);
         if (!success) console.warn(`[Paste] Could not activate ${appName} on Windows`);
         resolve(success);
-      }).catch(() => resolve(false));
+      }).catch((err) => {
+        console.error(`[Paste] Windows activateApp FAILED:`, err.message);
+        resolve(false);
+      });
     } else {
       resolve(false);
     }
@@ -162,7 +169,7 @@ async function typeText(text, targetApp = null) {
     return { success: false, error: 'Empty text' };
   }
 
-  console.log(`[Paste] Typing text: "${trimmedText.substring(0, 50)}${trimmedText.length > 50 ? '...' : ''}"`);
+  console.log(`[Paste] Typing text: "${trimmedText.substring(0, 50)}${trimmedText.length > 50 ? '...' : ''}" | platform: ${process.platform} | targetApp: ${targetApp}`);
 
   // Step 1: Save current clipboard so we can restore it after paste
   let originalClipboard = '';
@@ -245,13 +252,16 @@ function simulatePaste() {
       });
 
     } else if (process.platform === 'win32') {
+      console.log('[Paste] Windows: trying VBScript mshta paste...');
       // Try VBScript first (faster startup than PowerShell)
       const vbsCmd = 'mshta "javascript:var s=new ActiveXObject(\'WScript.Shell\');s.SendKeys(\'^v\');close()"';
       exec(vbsCmd, { timeout: 3000 }, (error) => {
         if (!error) {
+          console.log('[Paste] Windows: VBScript paste SUCCESS');
           resolve();
         } else {
-          console.warn('[Paste] VBScript paste failed, trying PowerShell keybd_event...');
+          console.warn('[Paste] Windows: VBScript paste FAILED:', error.message);
+          console.log('[Paste] Windows: trying PowerShell keybd_event fallback...');
           // Fallback: PowerShell with Win32 keybd_event (more reliable)
           const psScript = `
 Add-Type @'
@@ -272,7 +282,13 @@ public class KeySender {
 '@
 [KeySender]::Paste()
 `;
-          runPowershell(psScript).then(() => resolve()).catch(err2 => reject(err2));
+          runPowershell(psScript).then(() => {
+            console.log('[Paste] Windows: PowerShell keybd_event paste SUCCESS');
+            resolve();
+          }).catch(err2 => {
+            console.error('[Paste] Windows: PowerShell keybd_event paste FAILED:', err2.message);
+            reject(err2);
+          });
         }
       });
 

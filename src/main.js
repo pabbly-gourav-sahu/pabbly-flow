@@ -344,11 +344,10 @@ async function processAudio(audioData) {
       console.log('[Main] Text pasted successfully!');
       showSuccess();
     } else {
-      console.warn('[Main] Paste could not auto-type, text is on clipboard:', pasteResult.error);
-      // Text was already copied to clipboard in typeText step 2
-      // Show success instead of error — user can Ctrl+V/Cmd+V manually
+      console.error('[Main] Paste failed:', pasteResult.error);
+      // Still copy to clipboard as fallback
       clipboard.writeText(text.trim());
-      showSuccess();
+      showError('Paste failed - copied to clipboard');
     }
   } else {
     // Just copy to clipboard
