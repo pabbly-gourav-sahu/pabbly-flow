@@ -252,18 +252,21 @@ function simulatePaste() {
       });
 
     } else if (process.platform === 'win32') {
-      console.log('[Paste] Windows: trying VBScript mshta paste...');
-      // Try VBScript first (faster startup than PowerShell)
-      const vbsCmd = 'mshta "javascript:var s=new ActiveXObject(\'WScript.Shell\');s.SendKeys(\'^v\');close()"';
-      exec(vbsCmd, { timeout: 3000, windowsHide: true }, (error) => {
-        if (!error) {
-          console.log('[Paste] Windows: VBScript paste SUCCESS');
-          resolve();
-        } else {
-          console.warn('[Paste] Windows: VBScript paste FAILED:', error.message);
-          console.log('[Paste] Windows: trying PowerShell keybd_event fallback...');
-          // Fallback: PowerShell with Win32 keybd_event (more reliable)
-          const psScript = `
+      console.log('[Paste] Windows: sending Ctrl+V via .NET SendKeys...');
+      // Primary: .NET SendKeys — pre-compiled assembly, fast, always available
+      const sendKeysScript = `
+Add-Type -AssemblyName System.Windows.Forms
+Start-Sleep -Milliseconds 100
+[System.Windows.Forms.SendKeys]::SendWait('^v')
+`;
+      runPowershell(sendKeysScript).then(() => {
+        console.log('[Paste] Windows: SendKeys paste SUCCESS');
+        resolve();
+      }).catch((err) => {
+        console.warn('[Paste] Windows: SendKeys paste FAILED:', err.message);
+        console.log('[Paste] Windows: trying keybd_event fallback...');
+        // Fallback: Win32 keybd_event (hardware-level, works even with focus issues)
+        const keyboardScript = `
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
@@ -272,7 +275,7 @@ public class KeySender {
     [DllImport("user32.dll")]
     static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
     public static void Paste() {
-        Thread.Sleep(50);
+        Thread.Sleep(100);
         keybd_event(0x11, 0, 0, UIntPtr.Zero);
         keybd_event(0x56, 0, 0, UIntPtr.Zero);
         keybd_event(0x56, 0, 2, UIntPtr.Zero);
@@ -282,14 +285,13 @@ public class KeySender {
 '@
 [KeySender]::Paste()
 `;
-          runPowershell(psScript).then(() => {
-            console.log('[Paste] Windows: PowerShell keybd_event paste SUCCESS');
-            resolve();
-          }).catch(err2 => {
-            console.error('[Paste] Windows: PowerShell keybd_event paste FAILED:', err2.message);
-            reject(err2);
-          });
-        }
+        runPowershell(keyboardScript).then(() => {
+          console.log('[Paste] Windows: keybd_event paste SUCCESS');
+          resolve();
+        }).catch(err2 => {
+          console.error('[Paste] Windows: keybd_event paste FAILED:', err2.message);
+          reject(err2);
+        });
       });
 
     } else {
@@ -319,7 +321,7 @@ function sleep(ms) {
 function runPowershell(script) {
   return new Promise((resolve, reject) => {
     const encoded = Buffer.from(script, 'utf16le').toString('base64');
-    exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, { timeout: 5000, windowsHide: true }, (error, stdout, stderr) => {
+    exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, { timeout: 10000, windowsHide: true }, (error, stdout, stderr) => {
       if (error) {
         console.error('[Paste] PowerShell error:', stderr);
         reject(new Error(stderr || error.message));
