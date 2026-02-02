@@ -38,7 +38,7 @@ let currentShortcut = null;
 let isDev = !app.isPackaged;
 
 // ============ Main App Window ============
-function createMainWindow() {
+async function createMainWindow() {
   // If main window already exists, focus it
   if (mainWindow) {
     mainWindow.focus();
@@ -67,7 +67,22 @@ function createMainWindow() {
 
   // Load React app - dev server or built files
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
+    // Try multiple Vite ports in case default 5173 is taken
+    const ports = [5173, 5174, 5175, 5176];
+    let loaded = false;
+    for (const port of ports) {
+      try {
+        await mainWindow.loadURL(`http://localhost:${port}`);
+        console.log(`[Main] Loaded dev server on port ${port}`);
+        loaded = true;
+        break;
+      } catch (err) {
+        console.log(`[Main] Port ${port} not available, trying next...`);
+      }
+    }
+    if (!loaded) {
+      console.error('[Main] Could not connect to Vite dev server on any port');
+    }
     // Open DevTools in development
     // mainWindow.webContents.openDevTools();
   } else {
@@ -213,7 +228,14 @@ async function startRecording(source = 'shortcut') {
   if (source === 'shortcut') {
     // Shortcut: user is in the target app, capture it
     targetApp = await paste.getFrontmostApp();
-    console.log(`[Main] [shortcut] Target app for paste: ${targetApp}`);
+    // If user triggered shortcut from our own window, treat like button mode
+    const ownAppNames = ['Electron', 'electron', config.app.name, 'Pabbly Flow'];
+    if (targetApp && ownAppNames.includes(targetApp)) {
+      console.log(`[Main] [shortcut] Triggered from own app (${targetApp}), will capture target at paste time`);
+      targetApp = null;
+    } else {
+      console.log(`[Main] [shortcut] Target app for paste: ${targetApp}`);
+    }
   } else {
     // Button: user is in our Electron window, will capture target at paste time
     targetApp = null;
@@ -467,12 +489,14 @@ function setupIPC() {
         globalShortcut.unregister(currentShortcut);
       }
 
+      // Normalize for current platform before testing
+      const normalized = normalizeShortcut(shortcut);
       // Try to register new one
-      const success = globalShortcut.register(shortcut, () => {});
+      const success = globalShortcut.register(normalized, () => {});
 
       if (success) {
         // Unregister the test and restore old shortcut
-        globalShortcut.unregister(shortcut);
+        globalShortcut.unregister(normalized);
         if (currentShortcut) {
           registerGlobalShortcut(currentShortcut);
         }
@@ -651,6 +675,30 @@ function createFallbackIcon() {
 }
 
 // ============ Global Shortcut ============
+
+/**
+ * Normalize shortcut for the current platform.
+ * Windows/Linux: convert trailing '+.' to '+Period' (Electron accelerator syntax).
+ * macOS: '+.' works fine as-is.
+ */
+function normalizeShortcut(shortcut) {
+  if (!shortcut) return shortcut;
+  if (process.platform !== 'darwin' && shortcut.endsWith('+.')) {
+    return shortcut.slice(0, -1) + 'Period';
+  }
+  return shortcut;
+}
+
+/**
+ * Alternative shortcuts to try if the primary fails.
+ * Useful on Windows where certain key combos may be reserved.
+ */
+const FALLBACK_SHORTCUTS = [
+  'Alt+S',
+  'CommandOrControl+Shift+Space',
+  'CommandOrControl+Shift+;'
+];
+
 function registerGlobalShortcut(shortcut) {
   // Unregister existing shortcut
   if (currentShortcut) {
@@ -659,9 +707,10 @@ function registerGlobalShortcut(shortcut) {
   }
 
   // Use provided shortcut or get from settings
-  const shortcutKey = shortcut || getSetting('shortcut') || 'CommandOrControl+Shift+.';
+  const rawShortcut = shortcut || getSetting('shortcut') || 'CommandOrControl+Shift+.';
+  const shortcutKey = normalizeShortcut(rawShortcut);
 
-  const registered = globalShortcut.register(shortcutKey, () => {
+  const shortcutHandler = () => {
     console.log('');
     console.log('=================================');
     console.log('  SHORTCUT TRIGGERED!');
@@ -673,13 +722,28 @@ function registerGlobalShortcut(shortcut) {
     } else {
       stopRecording();
     }
-  });
+  };
+
+  const registered = globalShortcut.register(shortcutKey, shortcutHandler);
 
   if (registered) {
     currentShortcut = shortcutKey;
     console.log(`[Main] Global shortcut registered: ${shortcutKey}`);
   } else {
     console.error(`[Main] Failed to register shortcut: ${shortcutKey}`);
+    // Try fallback shortcuts on Windows/Linux
+    if (process.platform !== 'darwin') {
+      for (const fallback of FALLBACK_SHORTCUTS) {
+        const normalized = normalizeShortcut(fallback);
+        const ok = globalShortcut.register(normalized, shortcutHandler);
+        if (ok) {
+          currentShortcut = normalized;
+          console.log(`[Main] Fallback shortcut registered: ${normalized}`);
+          return true;
+        }
+      }
+      console.error('[Main] All shortcut alternatives failed');
+    }
   }
 
   return registered;
