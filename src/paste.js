@@ -255,7 +255,7 @@ function simulatePaste() {
       console.log('[Paste] Windows: trying VBScript mshta paste...');
       // Try VBScript first (faster startup than PowerShell)
       const vbsCmd = 'mshta "javascript:var s=new ActiveXObject(\'WScript.Shell\');s.SendKeys(\'^v\');close()"';
-      exec(vbsCmd, { timeout: 3000 }, (error) => {
+      exec(vbsCmd, { timeout: 3000, windowsHide: true }, (error) => {
         if (!error) {
           console.log('[Paste] Windows: VBScript paste SUCCESS');
           resolve();
@@ -319,7 +319,7 @@ function sleep(ms) {
 function runPowershell(script) {
   return new Promise((resolve, reject) => {
     const encoded = Buffer.from(script, 'utf16le').toString('base64');
-    exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, { timeout: 5000 }, (error, stdout, stderr) => {
+    exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, { timeout: 5000, windowsHide: true }, (error, stdout, stderr) => {
       if (error) {
         console.error('[Paste] PowerShell error:', stderr);
         reject(new Error(stderr || error.message));

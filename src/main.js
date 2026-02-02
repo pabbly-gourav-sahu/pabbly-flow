@@ -162,13 +162,15 @@ function createOverlayWindow() {
 /**
  * Show overlay without stealing focus, re-applying OS-level properties.
  * macOS can reset these after hide/show cycles.
+ * On Windows, set properties BEFORE showing to prevent focus steal.
  */
 function showOverlay() {
   if (!overlayWindow) return;
-  overlayWindow.showInactive();
-  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // Set focus-preventing properties BEFORE showing (critical for Windows)
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
   overlayWindow.setIgnoreMouseEvents(true);
+  overlayWindow.showInactive();
+  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 }
 
 // ============ Recorder Window (Hidden) ============
@@ -177,6 +179,8 @@ function createRecorderWindow() {
     width: 400,
     height: 300,
     show: false,
+    focusable: false,
+    skipTaskbar: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -218,9 +222,9 @@ async function startRecording(source = 'shortcut') {
 
   isRecording = true;
 
-  // Only notify renderer for button-triggered recording (so shortcut doesn't affect the button)
-  if (source === 'button' && mainWindow) {
-    mainWindow.webContents.send('recording-state', { isRecording: true });
+  // Always notify renderer so dashboard UI stays in sync
+  if (mainWindow) {
+    mainWindow.webContents.send('recording-state', { isRecording: true, source });
   }
 
   // Only show overlay for shortcut-triggered recording
@@ -243,9 +247,9 @@ function stopRecording() {
 
   isRecording = false;
 
-  // Only notify renderer for button-triggered recording
-  if (recordingSource === 'button' && mainWindow) {
-    mainWindow.webContents.send('recording-state', { isRecording: false });
+  // Always notify renderer so dashboard UI stays in sync
+  if (mainWindow) {
+    mainWindow.webContents.send('recording-state', { isRecording: false, source: recordingSource });
   }
 
   // Only update overlay if it was shown (shortcut-triggered)
