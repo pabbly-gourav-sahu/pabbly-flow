@@ -26,6 +26,32 @@ function getFrontmostApp() {
           resolve(appName);
         }
       });
+    } else if (process.platform === 'win32') {
+      const psScript = `
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+using System.Diagnostics;
+public class ForegroundHelper {
+    [DllImport("user32.dll")]
+    static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")]
+    static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+    public static string GetName() {
+        IntPtr hwnd = GetForegroundWindow();
+        uint pid;
+        GetWindowThreadProcessId(hwnd, out pid);
+        try { return Process.GetProcessById((int)pid).ProcessName; }
+        catch { return ""; }
+    }
+}
+'@
+[ForegroundHelper]::GetName()
+`;
+      runPowershell(psScript).then(name => {
+        console.log(`[Paste] Frontmost app (Windows): ${name}`);
+        resolve(name || null);
+      }).catch(() => resolve(null));
     } else {
       resolve(null);
     }
@@ -76,6 +102,38 @@ function activateApp(appName) {
           resolve(success);
         }
       });
+    } else if (process.platform === 'win32' && appName) {
+      console.log(`[Paste] Activating app (Windows): ${appName}`);
+      const safeName = appName.replace(/'/g, "''");
+      const psScript = `
+$procs = Get-Process -Name '${safeName}' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }
+if ($procs) {
+    Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public class WinActivator {
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+    public static void Activate(IntPtr hwnd) {
+        keybd_event(0x12, 0, 0, UIntPtr.Zero);
+        keybd_event(0x12, 0, 2, UIntPtr.Zero);
+        ShowWindow(hwnd, 9);
+        SetForegroundWindow(hwnd);
+    }
+}
+'@
+    [WinActivator]::Activate($procs[0].MainWindowHandle)
+    Write-Output 'true'
+} else {
+    Write-Output 'false'
+}
+`;
+      runPowershell(psScript).then(result => {
+        const success = result === 'true';
+        if (!success) console.warn(`[Paste] Could not activate ${appName} on Windows`);
+        resolve(success);
+      }).catch(() => resolve(false));
     } else {
       resolve(false);
     }
@@ -124,7 +182,7 @@ async function typeText(text, targetApp = null) {
   }
 
   // Step 3: Activate target app (only if it's not already frontmost)
-  if (targetApp && process.platform === 'darwin') {
+  if (targetApp) {
     const currentFront = await getFrontmostApp();
     if (currentFront !== targetApp) {
       console.log(`[Paste] Target "${targetApp}" not frontmost (current: "${currentFront}"), activating...`);
@@ -135,8 +193,8 @@ async function typeText(text, targetApp = null) {
     } else {
       console.log('[Paste] Target app already frontmost, skipping activation');
     }
-    // Short delay — activateApp already confirms focus internally
-    await sleep(50);
+    // Windows needs more time for focus to settle after activation
+    await sleep(process.platform === 'win32' ? 200 : 50);
   }
 
   // Step 4: Simulate paste keystroke (Cmd+V)
@@ -187,12 +245,34 @@ function simulatePaste() {
       });
 
     } else if (process.platform === 'win32') {
-      const script = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^v")`;
-      exec(`powershell -Command "${script}"`, (error, stdout, stderr) => {
-        if (error) {
-          reject(new Error(stderr || error.message));
-        } else {
+      // Try VBScript first (faster startup than PowerShell)
+      const vbsCmd = 'mshta "javascript:var s=new ActiveXObject(\'WScript.Shell\');s.SendKeys(\'^v\');close()"';
+      exec(vbsCmd, { timeout: 3000 }, (error) => {
+        if (!error) {
           resolve();
+        } else {
+          console.warn('[Paste] VBScript paste failed, trying PowerShell keybd_event...');
+          // Fallback: PowerShell with Win32 keybd_event (more reliable)
+          const psScript = `
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+using System.Threading;
+public class KeySender {
+    [DllImport("user32.dll")]
+    static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+    public static void Paste() {
+        Thread.Sleep(50);
+        keybd_event(0x11, 0, 0, UIntPtr.Zero);
+        keybd_event(0x56, 0, 0, UIntPtr.Zero);
+        keybd_event(0x56, 0, 2, UIntPtr.Zero);
+        keybd_event(0x11, 0, 2, UIntPtr.Zero);
+    }
+}
+'@
+[KeySender]::Paste()
+`;
+          runPowershell(psScript).then(() => resolve()).catch(err2 => reject(err2));
         }
       });
 
@@ -213,6 +293,25 @@ function simulatePaste() {
  */
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Helper: Run PowerShell script using EncodedCommand (avoids escaping issues)
+ * @param {string} script - PowerShell script to execute
+ * @returns {Promise<string>} - stdout trimmed
+ */
+function runPowershell(script) {
+  return new Promise((resolve, reject) => {
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
+    exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, { timeout: 5000 }, (error, stdout, stderr) => {
+      if (error) {
+        console.error('[Paste] PowerShell error:', stderr);
+        reject(new Error(stderr || error.message));
+      } else {
+        resolve(stdout.trim());
+      }
+    });
+  });
 }
 
 /**

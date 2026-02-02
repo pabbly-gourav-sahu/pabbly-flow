@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   List,
@@ -25,21 +25,33 @@ function Sidebar({ currentPage, onNavigate }) {
   const theme = useTheme();
   const { mode } = useAppTheme();
   const [sttConnected, setSttConnected] = useState(null);
+  const failCountRef = useRef(0);
 
   useEffect(() => {
     async function checkHealth() {
       try {
         if (window.electronAPI?.checkSttHealth) {
           const healthy = await window.electronAPI.checkSttHealth();
-          setSttConnected(healthy);
+          if (healthy) {
+            failCountRef.current = 0;
+            setSttConnected(true);
+          } else {
+            failCountRef.current++;
+            if (failCountRef.current >= 2) {
+              setSttConnected(false);
+            }
+          }
         }
       } catch {
-        setSttConnected(false);
+        failCountRef.current++;
+        if (failCountRef.current >= 2) {
+          setSttConnected(false);
+        }
       }
     }
 
     checkHealth();
-    const interval = setInterval(checkHealth, 15000);
+    const interval = setInterval(checkHealth, 10000);
     return () => clearInterval(interval);
   }, []);
 
