@@ -346,18 +346,11 @@ async function processAudio(audioData) {
     let pasteTarget = targetApp;
 
     if (!pasteTarget) {
-      // Button-triggered: user should have switched back to target app by now
-      // Get whatever app is currently focused
+      // No target captured at start (own-app or button-triggered).
+      // Get whatever app is currently focused — user may have switched
+      // to their target app by now. Always attempt Cmd+V paste.
       pasteTarget = await paste.getFrontmostApp();
-      const ownAppNames = ['Electron', 'electron', config.app.name];
-      if (pasteTarget && ownAppNames.includes(pasteTarget)) {
-        // Still in our app — just copy to clipboard, user will paste manually
-        console.log(`[Main] User still in Pabbly Flow, copying to clipboard`);
-        clipboard.writeText(text.trim());
-        showSuccess();
-        return;
-      }
-      console.log(`[Main] Button-triggered paste target: ${pasteTarget}`);
+      console.log(`[Main] Deferred paste target: ${pasteTarget}`);
     }
 
     // Overlay stays visible during paste — with setIgnoreMouseEvents(true)
